@@ -76,21 +76,21 @@ View detailed system information:
 3. Run:
 
 ```bash
-curl -L https://github.com/PixelAddictUnlocked/allycenter/raw/main/install.sh | sh
+curl -fsSL https://github.com/lonsdaleite/allycenter/raw/main/install.sh | bash
 ```
 
 **Via SSH:**
 
 ```bash
 ssh deck@<your-ally-ip>
-curl -L https://github.com/PixelAddictUnlocked/allycenter/raw/main/install.sh | sh
+curl -fsSL https://github.com/lonsdaleite/allycenter/raw/main/install.sh | bash
 ```
 
 The installer will download the latest release, install it, and restart Decky Loader automatically.
 
 ### Manual Install
 
-1. Download the latest release from the [Releases](https://github.com/PixelAddictUnlocked/allycenter/releases) page
+1. Download the latest release from the [Releases](https://github.com/lonsdaleite/allycenter/releases) page
 2. Extract to `~/homebrew/plugins/Ally Center/`
 3. Restart Decky Loader or reboot
 
@@ -135,5 +135,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- [GitHub Issues](https://github.com/PixelAddictUnlocked/allycenter/issues)
+- [GitHub Issues](https://github.com/lonsdaleite/allycenter/issues)
 - [Discord](https://discord.gg/pixeladdictgames)
