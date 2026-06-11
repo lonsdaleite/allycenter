@@ -2,6 +2,18 @@
 
 All notable changes to Ally Center will be documented in this file.
 
+## [1.3.0] - 2026-06-11
+
+### New Features
+
+- Restore saved hardware settings on plugin startup (RGB, CPU boost, SMT, charge limit, TDP, fan)
+- Auto-detect ROG Ally vs ROG Xbox Ally X and apply matching TDP profiles (up to 35W on Xbox Ally X)
+
+### Improvements
+
+- Dynamic TDP slider limits based on detected device
+- Added Balanced performance preset for ROG Xbox Ally X
+
 ## [1.1.0] - 2026-01-03
 
 ### New Features

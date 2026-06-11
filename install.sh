@@ -5,7 +5,7 @@ set -e
 
 PLUGIN_NAME="Ally Center"
 PLUGIN_DIR="$HOME/homebrew/plugins/$PLUGIN_NAME"
-REPO_OWNER="PixelAddictUnlocked"
+REPO_OWNER="lonsdaleite"
 REPO_NAME="allycenter"
 
 # Trap to ensure cleanup on exit
