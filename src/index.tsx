@@ -160,6 +160,7 @@ interface PerformanceProfile {
 interface ProfilesData {
   profiles: Record<string, PerformanceProfile>;
   current: string;
+  device_type?: string;
 }
 
 interface TdpInfo {
@@ -199,6 +200,7 @@ interface TdpSettings {
   tdp_override: boolean;
   use_external_tdp: boolean;
   available: boolean;
+  device_type?: string;
 }
 
 interface ChargeLimitInfo {
@@ -798,6 +800,8 @@ const PerformanceSection: VFC = () => {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentTdp, setCurrentTdp] = useState(15);
+  const [tdpMin, setTdpMin] = useState(5);
+  const [tdpMax, setTdpMax] = useState(30);
   const [currentFanMode, setCurrentFanMode] = useState("auto");
   const [tdpOverride, setTdpOverrideState] = useState(false);
   const [useExternalTdp, setUseExternalTdpState] = useState(false);
@@ -815,6 +819,8 @@ const PerformanceSection: VFC = () => {
         setTdpInfo(tdp);
         setCurrentFanMode(fan.mode);
         setCurrentTdp(tdpSettings.tdp);
+        setTdpMin(tdpSettings.min);
+        setTdpMax(tdpSettings.max);
         setTdpOverrideState(tdpSettings.tdp_override || false);
         setUseExternalTdpState(tdpSettings.use_external_tdp || false);
       } catch (e) {
@@ -964,8 +970,8 @@ const PerformanceSection: VFC = () => {
             <SliderField
               label={`TDP: ${currentTdp}W`}
               value={currentTdp}
-              min={5}
-              max={30}
+              min={tdpMin}
+              max={tdpMax}
               step={1}
               disabled={!tdpOverride}
               showValue={false}

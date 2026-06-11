@@ -27,9 +27,12 @@ FAN_CURVE_PATH = "/sys/devices/platform/asus-nb-wmi/fan_curve_enable"
 PWM_PATH = "/sys/devices/platform/asus-nb-wmi/hwmon"
 RYZENADJ_PATH = "/usr/bin/ryzenadj"
 ALLY_CONTROLLER_PATH = "/sys/devices/platform/asus-nb-wmi"
+TDP_MIN_WATTS = 5
+TDP_MAX_WATTS_ALLY = 30
+TDP_MAX_WATTS_XBOX_ALLY_X = 35
 
-# Preset power profiles with sensible defaults for the Z1 Extreme
-PERFORMANCE_PROFILES = {
+# Preset power profiles for Z1 Extreme (ROG Ally / ROG Ally X)
+PERFORMANCE_PROFILES_ALLY = {
     "download": {
         "name": "Download",
         "tdp": 5,
@@ -45,7 +48,7 @@ PERFORMANCE_PROFILES = {
         "description": "Low power, minimal fan noise"
     },
     "performance": {
-        "name": "Performance", 
+        "name": "Performance",
         "tdp": 25,
         "gpu_clock": 2200,
         "fan_curve": "balanced",
@@ -60,6 +63,45 @@ PERFORMANCE_PROFILES = {
     }
 }
 
+# Preset power profiles for Z2 Extreme (ROG Xbox Ally X)
+PERFORMANCE_PROFILES_XBOX_ALLY_X = {
+    "download": {
+        "name": "Download",
+        "tdp": 5,
+        "gpu_clock": 800,
+        "fan_curve": "quiet",
+        "description": "Minimum power for downloads"
+    },
+    "silent": {
+        "name": "Silent",
+        "tdp": 13,
+        "gpu_clock": 1300,
+        "fan_curve": "quiet",
+        "description": "Low power, minimal fan noise"
+    },
+    "balanced": {
+        "name": "Balanced",
+        "tdp": 17,
+        "gpu_clock": 2300,
+        "fan_curve": "balanced",
+        "description": "Moderate performance and thermals"
+    },
+    "performance": {
+        "name": "Performance",
+        "tdp": 25,
+        "gpu_clock": 2400,
+        "fan_curve": "balanced",
+        "description": "Balanced performance and thermals"
+    },
+    "turbo": {
+        "name": "Turbo",
+        "tdp": 35,
+        "gpu_clock": 2900,
+        "fan_curve": "performance",
+        "description": "Maximum performance"
+    }
+}
+
 
 class Plugin:
     settings_path: str = None
@@ -67,10 +109,13 @@ class Plugin:
     screen_off: bool = False
     effect_thread: threading.Thread = None
     effect_running: bool = False
+    device_type: str = "ally"
     
     async def _main(self):
         """Main entry point for the plugin"""
         self.settings_path = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
+        self.device_type = self._detect_device_type()
+        decky.logger.info(f"Detected device type: {self.device_type}")
         await self.load_settings()
         await self._apply_settings()
         decky.logger.info("Ally Center initialized")
@@ -106,7 +151,70 @@ class Plugin:
         except Exception as e:
             decky.logger.error(f"Failed to load settings: {e}")
             self.settings = {}
+        if self._normalize_current_profile():
+            await self.save_settings()
         return self.settings
+
+    def _read_dmi_field(self, filename: str) -> str:
+        filepath = os.path.join(DMI_PATH, filename)
+        try:
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    return f.read().strip()
+        except Exception as e:
+            decky.logger.warning(f"Failed to read DMI field {filename}: {e}")
+        return ""
+
+    def _read_cpu_model(self) -> str:
+        try:
+            if os.path.exists("/proc/cpuinfo"):
+                with open("/proc/cpuinfo", 'r') as f:
+                    for line in f:
+                        if line.startswith("model name"):
+                            return line.split(":", 1)[1].strip()
+        except Exception as e:
+            decky.logger.warning(f"Failed to read CPU model: {e}")
+        return ""
+
+    def _detect_device_type(self) -> str:
+        """Detect handheld model to select TDP limits and performance presets."""
+        product = self._read_dmi_field("product_name").lower()
+        cpu = self._read_cpu_model().lower()
+
+        if "xbox" in product and "ally" in product:
+            return "xbox_ally_x"
+        if "z2 extreme" in cpu or "z2 extreme" in product:
+            return "xbox_ally_x"
+
+        return "ally"
+
+    def _get_tdp_limits(self) -> tuple[int, int]:
+        if self.device_type == "xbox_ally_x":
+            return TDP_MIN_WATTS, TDP_MAX_WATTS_XBOX_ALLY_X
+        return TDP_MIN_WATTS, TDP_MAX_WATTS_ALLY
+
+    def _get_performance_profiles(self) -> dict:
+        if self.device_type == "xbox_ally_x":
+            return PERFORMANCE_PROFILES_XBOX_ALLY_X
+        return PERFORMANCE_PROFILES_ALLY
+
+    def _normalize_current_profile(self) -> bool:
+        profiles = self._get_performance_profiles()
+        changed = False
+        current = self.settings.get("current_profile", "performance")
+        if current not in profiles:
+            self.settings["current_profile"] = "performance"
+            changed = True
+
+        custom_tdp = self.settings.get("custom_tdp")
+        if custom_tdp is not None:
+            tdp_min, tdp_max = self._get_tdp_limits()
+            clamped_tdp = max(tdp_min, min(tdp_max, custom_tdp))
+            if clamped_tdp != custom_tdp:
+                self.settings["custom_tdp"] = clamped_tdp
+                changed = True
+
+        return changed
 
     async def save_settings(self):
         try:
@@ -630,17 +738,19 @@ class Plugin:
 
     async def get_performance_profiles(self) -> dict:
         return {
-            "profiles": PERFORMANCE_PROFILES,
-            "current": self.settings.get("current_profile", "performance")
+            "profiles": self._get_performance_profiles(),
+            "current": self.settings.get("current_profile", "performance"),
+            "device_type": self.device_type,
         }
 
     async def set_performance_profile(self, profile_id: str) -> bool:
         try:
-            if profile_id not in PERFORMANCE_PROFILES:
+            profiles = self._get_performance_profiles()
+            if profile_id not in profiles:
                 decky.logger.error(f"Unknown profile: {profile_id}")
                 return False
             
-            profile = PERFORMANCE_PROFILES[profile_id]
+            profile = profiles[profile_id]
             tdp = profile["tdp"]
             fan_curve = profile.get("fan_curve", "balanced")
             
@@ -965,13 +1075,16 @@ class Plugin:
             return False
 
     async def get_tdp_settings(self) -> dict:
+        tdp_min, tdp_max = self._get_tdp_limits()
+        default_tdp = self._get_performance_profiles()["silent"]["tdp"]
         return {
-            "tdp": self.settings.get("custom_tdp", 15),
-            "min": 5,
-            "max": 30,
+            "tdp": self.settings.get("custom_tdp", default_tdp),
+            "min": tdp_min,
+            "max": tdp_max,
             "tdp_override": self.settings.get("tdp_override", False),
             "use_external_tdp": self.settings.get("use_external_tdp", False),
-            "available": os.path.exists(RYZENADJ_PATH) or os.path.exists("/sys/devices/platform/asus-nb-wmi")
+            "available": os.path.exists(RYZENADJ_PATH) or os.path.exists("/sys/devices/platform/asus-nb-wmi"),
+            "device_type": self.device_type,
         }
 
     async def set_use_external_tdp(self, enabled: bool) -> bool:
@@ -987,7 +1100,8 @@ class Plugin:
 
     async def set_tdp(self, tdp: int) -> bool:
         try:
-            tdp = max(5, min(30, tdp))
+            tdp_min, tdp_max = self._get_tdp_limits()
+            tdp = max(tdp_min, min(tdp_max, tdp))
             self.settings["custom_tdp"] = tdp
             await self.save_settings()
             
@@ -1161,3 +1275,4 @@ class Plugin:
         except Exception as e:
             decky.logger.error(f"Failed to set CPU boost: {e}")
             return False
+
